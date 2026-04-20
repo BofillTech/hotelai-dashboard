@@ -101,8 +101,220 @@ const CategoryBadge = ({ category }) => {
   return category ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[category] || 'bg-gray-100 text-gray-600'}`}>{category}</span> : null;
 };
 
+// ── Login Page ──
+const LoginPage = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      let result;
+      if (isSignUp) {
+        result = await supabase.auth.signUp({ email, password });
+        if (result.error) throw result.error;
+        if (result.data?.user?.identities?.length === 0) { setError('Account already exists. Please sign in.'); setLoading(false); return; }
+        setError('Check your email to confirm your account, then sign in.');
+        setIsSignUp(false);
+        setLoading(false);
+        return;
+      } else {
+        result = await supabase.auth.signInWithPassword({ email, password });
+        if (result.error) throw result.error;
+      }
+      onLogin(result.data.session);
+    } catch (err) {
+      setError(err.message || 'Authentication failed');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">H</div>
+          <h1 className="text-3xl font-bold text-white">HotelAI</h1>
+          <p className="text-gray-400 mt-2">Front Desk Dashboard</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">{isSignUp ? 'Create Account' : 'Sign In'}</h2>
+          <p className="text-gray-500 text-sm mb-6">{isSignUp ? 'Create your admin account' : 'Sign in to manage your hotels'}</p>
+          {error && <div className={`mb-4 p-3 rounded-lg text-sm ${error.includes('Check your email') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm mb-4" placeholder="you@company.com" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm mb-6" placeholder="••••••••" />
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:opacity-50">
+              {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+            </button>
+          </form>
+          <p className="text-center text-sm text-gray-500 mt-4">
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button onClick={() => { setIsSignUp(!isSignUp); setError(''); }} className="text-orange-500 font-medium hover:underline">
+              {isSignUp ? 'Sign In' : 'Sign Up'}
+            </button>
+          </p>
+        </div>
+        <p className="text-center text-gray-600 text-xs mt-6">Powered by <strong className="text-orange-400">Bofill Technologies</strong></p>
+      </div>
+    </div>
+  );
+};
+
+// ── Admin Panel ──
+const AdminPanel = ({ user, onLogout, onSelectHotel }) => {
+  const [hotels, setHotels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editHotel, setEditHotel] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [form, setForm] = useState({ name: '', slug: '', phone: '', logo_url: '', address: '' });
+  const [saving, setSaving] = useState(false);
+
+  const loadHotels = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('hotels').select('*').order('name');
+    setHotels(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadHotels(); }, []);
+
+  const openAdd = () => { setEditHotel(null); setForm({ name: '', slug: '', phone: '', logo_url: '', address: '' }); setShowModal(true); };
+  const openEdit = (h) => { setEditHotel(h); setForm({ name: h.name || '', slug: h.slug || '', phone: h.phone || '', logo_url: h.logo_url || '', address: h.address || '' }); setShowModal(true); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const slug = form.slug || form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const payload = { ...form, slug };
+    if (editHotel) {
+      await supabase.from('hotels').update(payload).eq('id', editHotel.id);
+    } else {
+      await supabase.from('hotels').insert(payload);
+    }
+    setSaving(false);
+    setShowModal(false);
+    loadHotels();
+  };
+
+  const handleDelete = async (id) => {
+    await supabase.from('hotels').delete().eq('id', id);
+    setDeleteConfirm(null);
+    loadHotels();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white text-lg font-bold">H</div>
+          <div><h1 className="text-xl font-bold text-gray-900">HotelAI Admin</h1><p className="text-xs text-gray-500">Manage your properties</p></div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-500">{user?.email}</span>
+          <button onClick={onLogout} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50">Sign Out</button>
+        </div>
+      </div>
+      <div className="max-w-6xl mx-auto px-8 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div><h2 className="text-2xl font-bold text-gray-900">Properties</h2><p className="text-gray-500 text-sm">{hotels.length} hotel{hotels.length !== 1 ? 's' : ''} configured</p></div>
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors">
+            {icons.plus} Add Hotel
+          </button>
+        </div>
+        {loading ? <div className="flex justify-center py-16"><Spinner /></div> :
+        hotels.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">{icons.dashboard}</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hotels yet</h3>
+            <p className="text-gray-500 mb-4">Add your first property to get started</p>
+            <button onClick={openAdd} className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600">{icons.plus} Add Hotel</button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {hotels.map(h => (
+              <div key={h.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
+                <div className="p-5 cursor-pointer" onClick={() => onSelectHotel(h.slug)}>
+                  <div className="flex items-center gap-3 mb-3">
+                    {h.logo_url ? <img src={h.logo_url} alt="" className="w-12 h-12 rounded-full object-cover" /> :
+                      <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-lg font-bold">{(h.name || 'H')[0]}</div>}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 truncate">{h.name}</div>
+                      <div className="text-xs text-gray-400 font-mono">/{h.slug}</div>
+                    </div>
+                  </div>
+                  {h.phone && <div className="text-sm text-gray-500 mb-1">{fmtPhone(h.phone)}</div>}
+                  {h.address && <div className="text-xs text-gray-400 truncate">{h.address}</div>}
+                </div>
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                  <button onClick={(e) => { e.stopPropagation(); onSelectHotel(h.slug); }} className="text-sm text-orange-500 font-medium hover:underline">Open Dashboard &rsaquo;</button>
+                  <div className="flex gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); openEdit(h); }} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded">{icons.edit}</button>
+                    <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(h); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded">{icons.trash}</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{editHotel ? 'Edit Hotel' : 'Add New Hotel'}</h3>
+            <div className="space-y-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Hotel Name *</label>
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="The Royal Atlantic" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL path)</label>
+                <input type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="royal-atlantic (auto-generated if blank)" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="+1 (555) 123-4567" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                <input type="text" value={form.logo_url} onChange={e => setForm({...form, logo_url: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="https://..." /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="123 Beach Blvd, Miami FL" /></div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleSave} disabled={!form.name || saving} className="flex-1 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50">
+                {saving ? 'Saving...' : editHotel ? 'Save Changes' : 'Add Hotel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Hotel?</h3>
+            <p className="text-gray-500 text-sm mb-6">Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm.id)} className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Sidebar ──
-const Sidebar = ({ hotel, page, setPage }) => {
+const Sidebar = ({ hotel, page, setPage, onLogout }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
     { id: 'messages', label: 'Messages Inbox', icon: icons.messages },
@@ -115,7 +327,11 @@ const Sidebar = ({ hotel, page, setPage }) => {
         {hotel?.logo_url ? <img src={hotel.logo_url} alt="Logo" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-lg font-bold">H</div>}
         <span className="text-lg font-bold text-white">HotelAI</span>
       </div>
-      <nav className="flex-1 px-3 mt-2">
+      <a href="/" className="mx-3 mb-2 flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-all border border-gray-700">
+        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        <span>All Hotels</span>
+      </a>
+      <nav className="flex-1 px-3 mt-1">
         {navItems.map(item => (
           <button key={item.id} onClick={() => setPage(item.id)}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm font-medium transition-all ${page === item.id ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
@@ -126,6 +342,7 @@ const Sidebar = ({ hotel, page, setPage }) => {
       <div className="p-4 border-t border-gray-800">
         <div className="text-sm font-medium text-gray-200">{hotel?.name || 'Loading...'}</div>
         <div className="text-xs text-gray-500 mt-0.5">Powered by Bofill Technologies</div>
+        {onLogout && <button onClick={onLogout} className="mt-2 text-xs text-gray-500 hover:text-gray-300">Sign Out</button>}
       </div>
     </div>
   );
@@ -913,6 +1130,8 @@ const WorkflowsTab = ({ hotel }) => {
 
 // ── Main App ──
 function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [hotel, setHotel] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [loading, setLoading] = useState(true);
@@ -926,52 +1145,91 @@ function App() {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setHotel(null);
+    setError(null);
+    window.history.pushState({}, '', '/');
+  };
+
+  // Check auth state on load
   useEffect(() => {
-    // Support: /royal-atlantic, /royalatlantic, or ?slug=royal-atlantic
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Determine slug from URL
+  const getSlug = () => {
     const params = new URLSearchParams(window.location.search);
     let slug = params.get('slug') || window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
-    if (!slug || slug === 'hotelai-dashboard.html') { setError('No hotel specified. Navigate to /{hotel-slug}'); setLoading(false); return; }
+    if (!slug || slug === 'index.html' || slug === 'hotelai-dashboard.html' || slug === '404.html') return null;
+    return slug;
+  };
 
-    // Try exact slug first, then try with/without hyphens
+  const currentSlug = getSlug();
+
+  // Load hotel when slug is present and user is authenticated
+  useEffect(() => {
+    if (!session || !currentSlug) { setLoading(false); return; }
+    setLoading(true);
+
     const trySlug = async (s) => {
-      const { data, error: err } = await supabase.from('hotels').select('*').eq('slug', s).single();
+      const { data } = await supabase.from('hotels').select('*').eq('slug', s).single();
       return data;
     };
 
     const loadHotel = async () => {
-      let data = await trySlug(slug);
-      // If not found, try adding hyphens (royalatlantic -> royal-atlantic)
-      if (!data && !slug.includes('-')) {
-        // Try common word breaks - check all slugs and find closest match
-        const { data: all } = await supabase.from('hotels').select('slug, id').ilike('slug', '%' + slug.substring(0, 5) + '%');
+      let data = await trySlug(currentSlug);
+      if (!data && !currentSlug.includes('-')) {
+        const { data: all } = await supabase.from('hotels').select('slug, id').ilike('slug', '%' + currentSlug.substring(0, 5) + '%');
         if (all && all.length > 0) data = await trySlug(all[0].slug);
       }
-      // If not found, try removing hyphens (royal-atlantic -> royalatlantic)
-      if (!data && slug.includes('-')) {
-        data = await trySlug(slug.replace(/-/g, ''));
+      if (!data && currentSlug.includes('-')) {
+        data = await trySlug(currentSlug.replace(/-/g, ''));
       }
-      if (!data) { setError('Hotel "' + slug + '" not found.'); }
+      if (!data) { setError('Hotel "' + currentSlug + '" not found.'); }
       else { setHotel(data); document.title = data.name + ' - HotelAI Dashboard'; }
       setLoading(false);
     };
     loadHotel();
-  }, []);
+  }, [session, currentSlug]);
 
+  // Auth loading
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-gray-900"><Spinner /><span className="ml-3 text-gray-400">Loading...</span></div>;
+
+  // Not logged in → Login page
+  if (!session) return <LoginPage onLogin={(s) => setSession(s)} />;
+
+  // Logged in but no slug → Admin panel
+  if (!currentSlug) return <AdminPanel user={session.user} onLogout={handleLogout} onSelectHotel={(slug) => { window.location.href = '/' + slug; }} />;
+
+  // Loading hotel
   if (loading) return <div className="h-screen flex items-center justify-center"><Spinner /><span className="ml-3 text-gray-500">Loading dashboard...</span></div>;
+
+  // Hotel not found
   if (error) return (
     <div className="h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="text-6xl font-bold text-gray-200 mb-4">404</div>
         <div className="text-gray-500 mb-2">{error}</div>
-        <div className="text-sm text-gray-400">Powered by <strong className="text-orange-500">Bofill Technologies</strong></div>
+        <a href="/" className="inline-block mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600">&larr; Back to Admin</a>
+        <div className="text-sm text-gray-400 mt-4">Powered by <strong className="text-orange-500">Bofill Technologies</strong></div>
       </div>
     </div>
   );
 
+  // Hotel dashboard
   return (
     <div className="flex min-h-screen">
       <Toast toasts={toasts} onDismiss={id => setToasts(t => t.filter(x => x.id !== id))} />
-      <Sidebar hotel={hotel} page={page} setPage={setPage} />
+      <Sidebar hotel={hotel} page={page} setPage={setPage} onLogout={handleLogout} />
       <div className="ml-60 flex-1 p-8">
         {page === 'dashboard' && <DashboardPage hotel={hotel} setPage={setPage} />}
         {page === 'messages' && <MessagesPage hotel={hotel} />}
