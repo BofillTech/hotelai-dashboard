@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com/"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supahbase/supabase-js@2"></script>
 <style>
   body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f8f9fb; }
   .sidebar-scroll::-webkit-scrollbar { width: 4px; }
@@ -178,7 +178,7 @@ const AdminPanel = ({ user, onLogout, onSelectHotel }) => {
   const [showModal, setShowModal] = useState(false);
   const [editHotel, setEditHotel] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [form, setForm] = useState({ name: '', slug: '', phone: '', logo_url: '', address: '' });
+  const [form, setForm] = useState({ name: '', slug: '', phone_number: '', logo_url: '', address: '' });
   const [saving, setSaving] = useState(false);
 
   const loadHotels = async () => {
@@ -190,13 +190,13 @@ const AdminPanel = ({ user, onLogout, onSelectHotel }) => {
 
   useEffect(() => { loadHotels(); }, []);
 
-  const openAdd = () => { setEditHotel(null); setForm({ name: '', slug: '', phone: '', logo_url: '', address: '' }); setShowModal(true); };
-  const openEdit = (h) => { setEditHotel(h); setForm({ name: h.name || '', slug: h.slug || '', phone: h.phone || '', logo_url: h.logo_url || '', address: h.address || '' }); setShowModal(true); };
+  const openAdd = () => { setEditHotel(null); setForm({ name: '', slug: '', phone_number: '', logo_url: '', address: '' }); setShowModal(true); };
+  const openEdit = (h) => { setEditHotel(h); setForm({ name: h.name || '', slug: h.slug || '', phone_number: h.phone_number || '', logo_url: h.logo_url || '', address: h.address || '' }); setShowModal(true); };
 
   const handleSave = async () => {
     setSaving(true);
     const slug = form.slug || form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const payload = { ...form, slug };
+    const payload = { name: form.name, slug, phone_number: form.phone_number || null, logo_url: form.logo_url || null, address: form.address || null };
     if (editHotel) {
       await supabase.from('hotels').update(payload).eq('id', editHotel.id);
     } else {
@@ -280,7 +280,7 @@ const AdminPanel = ({ user, onLogout, onSelectHotel }) => {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL path)</label>
                 <input type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="royal-atlantic (auto-generated if blank)" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="+1 (555) 123-4567" /></div>
+                <input type="text" value={form.phone_number} onChange={e => setForm({...form, phone_number: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="+1 (555) 123-4567" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
                 <input type="text" value={form.logo_url} onChange={e => setForm({...form, logo_url: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="https://..." /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
