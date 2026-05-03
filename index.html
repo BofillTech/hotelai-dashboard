@@ -367,55 +367,90 @@ const TopBar = ({ title, subtitle }) => (
 
 // ── Dashboard Page ──
 const DashboardPage = ({ hotel, setPage }) => {
-  const [calls, setCalls] = useState([]);
-  const [messages, setMessages] = useState([]);
+  const [allCalls, setAllCalls] = useState([]);
+  const [allMessages, setAllMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalCalls: 0, openMsgs: 0, avgDuration: 0 });
+  const [dateRange, setDateRange] = useState('today');
 
   useEffect(() => {
     if (!hotel?.id) return;
     const load = async () => {
       setLoading(true);
-      const today = new Date(); today.setHours(0,0,0,0);
       const [callRes, msgRes] = await Promise.all([
-        supabase.from('calls').select('*').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(50),
-        supabase.from('messages').select('*').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(50)
+        supabase.from('calls').select('*').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(100),
+        supabase.from('messages').select('*').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(100)
       ]);
-      const allCalls = callRes.data || [];
-      const allMsgs = msgRes.data || [];
-      const todayCalls = allCalls.filter(c => new Date(c.created_at) >= today);
-      const durations = allCalls.filter(c => c.duration_seconds).map(c => c.duration_seconds);
-      const avg = durations.length ? Math.round(durations.reduce((a,b) => a+b, 0) / durations.length) : 0;
-      setStats({ totalCalls: todayCalls.length, openMsgs: allMsgs.filter(m => !m.read).length, avgDuration: avg });
-      setCalls(allCalls.slice(0, 5));
-      setMessages(allMsgs.slice(0, 5));
+      setAllCalls(callRes.data || []);
+      setAllMessages(msgRes.data || []);
       setLoading(false);
     };
     load();
   }, [hotel?.id]);
 
+  // Filter by date range
+  const filterByDate = (items) => {
+    if (dateRange === 'all') return items;
+    const now = new Date();
+    return items.filter(item => {
+      const created = new Date(item.created_at);
+      if (dateRange === 'today') { const start = new Date(); start.setHours(0,0,0,0); return created >= start; }
+      if (dateRange === '7d') return (now - created) <= 7 * 86400000;
+      if (dateRange === '30d') return (now - created) <= 30 * 86400000;
+      return true;
+    });
+  };
+
+  const filteredCalls = filterByDate(allCalls);
+  const filteredMessages = filterByDate(allMessages);
+  const openMsgs = filteredMessages.filter(m => !m.read).length;
+  const durations = filteredCalls.filter(c => c.duration_seconds).map(c => c.duration_seconds);
+  const avgDuration = durations.length ? Math.round(durations.reduce((a,b) => a+b, 0) / durations.length) : 0;
+
+  const rangeLabel = { today: 'Today', '7d': 'Last 7 Days', '30d': 'Last 30 Days', all: 'All Time' };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
   return (
     <div>
-      <TopBar title="Dashboard" subtitle="Welcome back, here's what's happening" />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Welcome back, here's what's happening</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gray-100 rounded-lg p-0.5">
+            {['today', '7d', '30d', 'all'].map(r => (
+              <button key={r} onClick={() => setDateRange(r)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === r ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {rangeLabel[r]}
+              </button>
+            ))}
+          </div>
+          <div className="relative">
+            <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 relative">{icons.bell}
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">7</span>
+            </button>
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-5 mb-6">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500 mb-3">{icons.calllog}</div>
           <div className="text-gray-500 text-sm">Calls</div>
-          <div className="text-3xl font-bold text-gray-900 mt-1">{stats.totalCalls}</div>
-          <div className="text-gray-400 text-xs mt-1">Today</div>
+          <div className="text-3xl font-bold text-gray-900 mt-1">{filteredCalls.length}</div>
+          <div className="text-gray-400 text-xs mt-1">{rangeLabel[dateRange]}</div>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-500 mb-3">{icons.messages}</div>
           <div className="text-gray-500 text-sm">Open Messages</div>
-          <div className="text-3xl font-bold text-gray-900 mt-1">{stats.openMsgs}</div>
-          <div className="text-gray-400 text-xs mt-1">{stats.openMsgs} urgent priority</div>
+          <div className="text-3xl font-bold text-gray-900 mt-1">{openMsgs}</div>
+          <div className="text-gray-400 text-xs mt-1">{rangeLabel[dateRange]}</div>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-500 mb-3">{icons.clock}</div>
           <div className="text-gray-500 text-sm">Avg Call Duration</div>
-          <div className="text-3xl font-bold text-gray-900 mt-1">{fmtDuration(stats.avgDuration)}</div>
+          <div className="text-3xl font-bold text-gray-900 mt-1">{fmtDuration(avgDuration)}</div>
+          <div className="text-gray-400 text-xs mt-1">{rangeLabel[dateRange]}</div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-5">
@@ -424,7 +459,7 @@ const DashboardPage = ({ hotel, setPage }) => {
             <div><h3 className="font-semibold text-gray-900">Recent Calls</h3><p className="text-xs text-gray-400">Latest incoming calls</p></div>
             <button onClick={() => setPage('calllog')} className="text-orange-500 text-sm font-medium hover:underline">View All &rsaquo;</button>
           </div>
-          {calls.length === 0 ? <p className="text-gray-400 text-sm">No calls yet</p> : calls.map(c => (
+          {filteredCalls.length === 0 ? <p className="text-gray-400 text-sm">No calls yet</p> : filteredCalls.slice(0, 5).map(c => (
             <div key={c.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">{icons.calllog}</div>
@@ -442,7 +477,7 @@ const DashboardPage = ({ hotel, setPage }) => {
             <div><h3 className="font-semibold text-gray-900">Recent Messages</h3><p className="text-xs text-gray-400">Latest guest messages</p></div>
             <button onClick={() => setPage('messages')} className="text-orange-500 text-sm font-medium hover:underline">View All &rsaquo;</button>
           </div>
-          {messages.length === 0 ? <p className="text-gray-400 text-sm">No messages yet</p> : messages.map(m => (
+          {filteredMessages.length === 0 ? <p className="text-gray-400 text-sm">No messages yet</p> : filteredMessages.slice(0, 5).map(m => (
             <div key={m.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
               <div>
                 <div className="text-sm font-medium text-gray-900">{m.caller_name || fmtPhone(m.caller_phone)}</div>
