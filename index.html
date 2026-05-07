@@ -200,7 +200,10 @@ const AdminPanel = ({ user, onLogout, onSelectHotel }) => {
     if (editHotel) {
       await supabase.from('hotels').update(payload).eq('id', editHotel.id);
     } else {
-      await supabase.from('hotels').insert(payload);
+          const { data: { user } } = await supabase.auth.getUser();
+                const { data: ownerRow } = await supabase.from('owners').select('id').eq('email', user.email).single();
+                if (ownerRow) payload.owner_id = ownerRow.id;
+                await supabase.from('hotels').insert(payload);
     }
     setSaving(false);
     setShowModal(false);
