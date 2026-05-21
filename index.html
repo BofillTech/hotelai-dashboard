@@ -684,6 +684,7 @@ const CallLogPage = ({ hotel }) => {
           <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
             <th className="px-4 py-3 text-left">From</th><th className="px-4 py-3 text-left">To</th><th className="px-4 py-3 text-left">Duration</th>
             <th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Disconnect</th><th className="px-4 py-3 text-left">Date</th>
+            <th className="px-4 py-3 text-left w-12"></th>
           </tr></thead>
           <tbody>{filtered.map(c => (
             <React.Fragment key={c.id}>
@@ -694,9 +695,31 @@ const CallLogPage = ({ hotel }) => {
                 <td className="px-4 py-3"><StatusBadge status={c.call_status || 'completed'} /></td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{(c.disconnection_reason || '').replace(/_/g, ' ')}</td>
                 <td className="px-4 py-3 text-gray-400">{fmtRelative(c.created_at)}</td>
+                <td className="px-4 py-3 text-gray-400 text-right">
+                  <span className={`inline-block transition-transform ${expanded === c.id ? 'rotate-90' : ''}`}>›</span>
+                </td>
               </tr>
               {expanded === c.id && (
-                <tr><td colSpan="6" className="px-4 py-4 bg-gray-50">
+                <tr><td colSpan="7" className="px-4 py-4 bg-gray-50">
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {c.recording_url && (
+                      <a href={c.recording_url} target="_blank" rel="noopener noreferrer"
+                         className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors"
+                         onClick={e => e.stopPropagation()}>
+                        🔊 Listen to recording
+                      </a>
+                    )}
+                    {c.public_log_url && (
+                      <a href={c.public_log_url} target="_blank" rel="noopener noreferrer"
+                         className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+                         onClick={e => e.stopPropagation()}>
+                        📋 View in Retell
+                      </a>
+                    )}
+                    {!c.recording_url && !c.public_log_url && (
+                      <span className="text-xs text-gray-400 italic">Audio recording not available for this call</span>
+                    )}
+                  </div>
                   {c.transcript && <div><strong className="text-xs text-gray-500 uppercase">Transcript</strong><p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap max-h-48 overflow-y-auto">{c.transcript}</p></div>}
                   {!c.transcript && <p className="text-sm text-gray-400">No transcript available</p>}
                 </td></tr>
