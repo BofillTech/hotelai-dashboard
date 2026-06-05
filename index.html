@@ -1485,13 +1485,27 @@ const WorkflowsTab = ({ hotel }) => {
 const PasswordGate = ({ hotel, onUnlock }) => {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
-  const submit = (e) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
     e.preventDefault();
-    if (pw && pw === (hotel.dashboard_password || '')) {
-      sessionStorage.setItem('dbpw_' + hotel.slug, '1');
-      onUnlock();
-    } else {
-      setErr('Incorrect password.');
+    if (!pw) { setErr('Enter a password.'); return; }
+    setBusy(true);
+    setErr('');
+    try {
+      const { data, error } = await supabase.rpc('verify_dashboard_password', {
+        p_slug: hotel.slug, p_password: pw
+      });
+      if (error) { setErr('Verification failed. Try again.'); }
+      else if (data === true) {
+        sessionStorage.setItem('dbpw_' + hotel.slug, '1');
+        onUnlock();
+      } else {
+        setErr('Incorrect password.');
+      }
+    } catch (ex) {
+      setErr('Network error. Try again.');
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -1507,9 +1521,9 @@ const PasswordGate = ({ hotel, onUnlock }) => {
           placeholder="Password"
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-3" />
         {err && <p className="text-xs text-red-500 mb-3">{err}</p>}
-        <button type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2.5 rounded-lg transition-colors">
-          Unlock
+        <button type="submit" disabled={busy}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition-colors">
+          {busy ? 'Checking...' : 'Unlock'}
         </button>
         <p className="text-xs text-gray-400 text-center mt-4">Powered by <strong className="text-orange-500">Bofill Technologies</strong></p>
       </form>
@@ -1570,15 +1584,18 @@ function App() {
     if (!currentSlug) { setLoading(false); return; }
     setLoading(true);
 
+    // When anonymous, use the hotels_public view (no PMS keys / no plaintext password).
+    // When authenticated, fetch the full row so the Settings page can show PMS credentials.
+    const tableForRead = session ? 'hotels' : 'hotels_public';
     const trySlug = async (s) => {
-      const { data } = await supabase.from('hotels').select('*').eq('slug', s).single();
+      const { data } = await supabase.from(tableForRead).select('*').eq('slug', s).single();
       return data;
     };
 
     const loadHotel = async () => {
       let data = await trySlug(currentSlug);
       if (!data && !currentSlug.includes('-')) {
-        const { data: all } = await supabase.from('hotels').select('slug, id').ilike('slug', '%' + currentSlug.substring(0, 5) + '%');
+        const { data: all } = await supabase.from(tableForRead).select('slug, id').ilike('slug', '%' + currentSlug.substring(0, 5) + '%');
         if (all && all.length > 0) data = await trySlug(all[0].slug);
       }
       if (!data && currentSlug.includes('-')) {
@@ -1593,7 +1610,7 @@ function App() {
       setLoading(false);
     };
     loadHotel();
-  }, [currentSlug]);
+  }, [currentSlug, session]);
 
   // If there's a slug, show the hotel dashboard directly (no login needed)
   if (currentSlug) {
