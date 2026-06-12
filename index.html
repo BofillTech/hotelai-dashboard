@@ -985,6 +985,8 @@ const HotelInfoTab = ({ hotel, setHotel, addToast }) => {
     const { error } = await supabase.from('hotels').update({
       name: form.name, address: form.address, city: form.city, state: form.state, zip: form.zip,
       country: form.country, website: form.website, booking_url: form.booking_url,
+      notification_email: form.notification_email || null,
+      notify_email_enabled: !!form.notify_email_enabled,
       check_in_time: form.check_in_time, check_out_time: form.check_out_time,
       pet_policy: form.pet_policy, parking_info: form.parking_info, wifi_info: form.wifi_info,
       special_instructions: form.special_instructions, season_start: form.season_start || null, season_end: form.season_end || null,
@@ -1030,6 +1032,27 @@ const HotelInfoTab = ({ hotel, setHotel, addToast }) => {
           <Field label="Website" value={form.website} onChange={v => set('website', v)} />
           <Field label="Booking URL" value={form.booking_url} onChange={v => set('booking_url', v)} />
         </div>
+      </div>
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <h3 className="font-semibold text-gray-900">Message Alerts</h3>
+            <p className="text-sm text-gray-400">Email an alert whenever Grace takes a message for this property.</p>
+          </div>
+          <label className="inline-flex items-center cursor-pointer mt-1">
+            <input type="checkbox" className="sr-only peer" checked={!!form.notify_email_enabled}
+              onChange={e => set('notify_email_enabled', e.target.checked)} />
+            <div className="w-11 h-6 bg-gray-200 peer-checked:bg-orange-500 rounded-full relative transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"></div>
+          </label>
+        </div>
+        {form.notify_email_enabled && (
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <Field label="Alert Email" type="email" value={form.notification_email || ''}
+              onChange={v => set('notification_email', v)}
+              placeholder="frontdesk@yourhotel.com" className="col-span-2" />
+            <p className="col-span-2 text-xs text-gray-400 -mt-2">Alerts are sent from support@bofilltech.com. Turn the switch off to pause alerts without losing this address.</p>
+          </div>
+        )}
       </div>
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-start justify-between mb-1">
@@ -1625,7 +1648,7 @@ function App() {
       </div>
     );
     if (hotel) {
-      const needsPassword = hotel.password_protect_enabled && hotel.dashboard_password && !unlocked && !session;
+      const needsPassword = hotel.password_protect_enabled && !unlocked && !session;
       if (needsPassword) return <PasswordGate hotel={hotel} onUnlock={() => setUnlocked(true)} />;
       return (
         <div className="flex min-h-screen">
